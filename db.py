@@ -20,7 +20,7 @@ class DB:
     def register(self, username, password):
         account = {
             "username": username,
-            "password": bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+            "password": password
         }
         self.db.accounts.insert(account)
 
