@@ -316,7 +316,7 @@ class peerMain:
             if choice is "1":
                 username = input("username: ")
                 password = input("password: ")
-                while password.len()<7:
+                while len(password)<7:
                     print("Password must be greater than or equal to SEVEN characters.")
                     password = input("password: ")
                 

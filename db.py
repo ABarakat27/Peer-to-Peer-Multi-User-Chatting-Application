@@ -13,11 +13,8 @@ class DB:
 
     # checks if an account with the username exists
     def is_account_exist(self, username):
-        if self.db.accounts.find({'username': username}).count() > 0:
-            return True
-        else:
-            return False
-    
+        count = self.db.accounts.count_documents({'username': username})
+        return count > 0
 
     # registers a user
     def register(self, username, password):
