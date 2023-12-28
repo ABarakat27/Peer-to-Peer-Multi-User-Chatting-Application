@@ -416,7 +416,7 @@ class peerMain:
 
             #if choice is 6 then user wants to see currently online users
             elif choice == "6":
-                viewOnlineUsers(self)
+                self.viewOnlineUsers(self)
 
             elif choice == "7":
                 group_peers = []
@@ -533,8 +533,8 @@ class peerMain:
         response = self.tcpClientSocket.recv(1024).decode().split()
         if response[0] == "CURRENTLY-ONLINE-USERS":
             print("Online users: ")
-            for i in response:
-                if(i!="CURRENTLY-ONLINE-USERS"):
+            for i in response[1]:
+
                     print(i)
         
             print("Reference code: 213")

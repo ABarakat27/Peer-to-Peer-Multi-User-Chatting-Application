@@ -145,6 +145,14 @@ class ClientThread(threading.Thread):
                         response = "SEARCH-NOT-FOUND 317"
                         logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response) 
                         self.tcpClientSocket.send(response.encode())
+                    # Show Online users
+                elif message[0]=="VIEW-ONLINE-USERS":
+                    online_users=db.get_online_users()
+                    response="CURRENTLY-ONLINE-USERS"+online_users
+
+
+
+
             except OSError as oErr:
                 logging.error("OSError: {0}".format(oErr)) 
 

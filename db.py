@@ -45,3 +45,9 @@ class DB:
     def get_peer_ip_port(self, username):
         res = self.db.online_peers.find_one({"username": username})
         return (res["ip"], res["port"])
+
+    def get_online_users(self):
+        users=[]
+        for x in self.db.accounts.find({},{"username":1,"password":0}):
+            users.append(x)
+        return users
