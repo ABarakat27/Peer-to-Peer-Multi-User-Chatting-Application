@@ -1,7 +1,7 @@
 '''
     ##  Implementation of peer
     ##  Each peer has a client and a server side that runs on different threads
-    ##  150114822 - Eren Ulaş
+    ##  150114822 - Eren Ulaş
 '''
 
 from socket import *
@@ -9,8 +9,17 @@ import threading
 import time
 import select
 import logging
-import bcrypt
+from queue import Queue
 
+
+class TextColors:
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    END = '\033[0m'
+
+    
 # Server side of peer
 class PeerServer(threading.Thread):
 
@@ -37,7 +46,30 @@ class PeerServer(threading.Thread):
         self.isOnline = True
         # keeps the username of the peer that this peer is chatting with
         self.chattingClientName = None
-    
+
+    ring_peers = []
+    ring_message_queue = Queue()
+
+    def add_to_ring(self, peer):
+        self.ring_peers.append(peer)
+
+    def ring_thread(self):
+        while self.isOnline:
+            # Check for incoming messages in the ring_message_queue
+            if not self.ring_message_queue.empty():
+                message = self.ring_message_queue.get()
+                # print(f"Received message in ring: {message}")
+
+                # Process the message (e.g., display it to the user)
+                print(message[1] + ":" + message[2:len(message)])
+
+                # Forward the message to the next peer in the ring
+                self.forward_message_to_next(message)
+
+    def forward_message_to_next(self, message):
+        if self.isChatRequested == 1:
+            next_peer = self.ring_peers[0]  # Change this logic based on your ring structure
+            next_peer.tcpClientSocket.send(f"RING-MESSAGE {message}".encode())
 
     # main method of the peer server thread
     def run(self):
@@ -127,7 +159,7 @@ class PeerServer(threading.Thread):
                         # if a message is received, and if this is not a quit message ':q' and 
                         # if it is not an empty message, show this message to the user
                         elif messageReceived[:2] != ":q" and len(messageReceived)!= 0:
-                            print(self.chattingClientName + ": " + messageReceived)
+                            print(TextColors.GREEN + self.chattingClientName + ": " + messageReceived + TextColors.END)
                         # if the message received is a quit message ':q',
                         # makes ischatrequested 1 to receive new incoming request messages
                         # removes the socket of the connected peer from the inputs list
@@ -176,6 +208,14 @@ class PeerClient(threading.Thread):
         # keeps if this client is ending the chat or not
         self.isEndingChat = False
 
+    def send_message_to_ring(self, message):
+        self.tcpClientSocket.send(f"RING-MESSAGE {message}".encode())
+
+    def handle_ring_message(self, message):
+        # Implement logic to handle messages received in the ring
+        print(f"Received ring message: {message}")
+        # Send acknowledgment to the previous peer
+        self.tcpClientSocket.send("ACK".encode())
 
     # main method of the peer client thread
     def run(self):
@@ -207,7 +247,7 @@ class PeerClient(threading.Thread):
                 # as long as the server status is chatting, this client can send messages
                 while self.peerServer.isChatRequested == 1:
                     # message input prompt
-                    messageSent = input(self.username + ": ")
+                    messageSent = input(TextColors.BLUE + self.username + ": " + TextColors.END)
                     # sends the message to the connected peer, and logs it
                     self.tcpClientSocket.send(messageSent.encode())
                     logging.info("Send to " + self.ipToConnect + ":" + str(self.portToConnect) + " -> " + messageSent)
@@ -255,7 +295,7 @@ class PeerClient(threading.Thread):
             # client can send messsages as long as the server status is chatting
             while self.peerServer.isChatRequested == 1:
                 # input prompt for user to enter message
-                messageSent = input(self.username + ": ")
+                messageSent = input(TextColors.BLUE + self.username + ": " + TextColors.END)
                 self.tcpClientSocket.send(messageSent.encode())
                 logging.info("Send to " + self.ipToConnect + ":" + str(self.portToConnect) + " -> " + messageSent)
                 # if a quit message is sent, server status is changed
@@ -272,7 +312,8 @@ class PeerClient(threading.Thread):
                     logging.info("Send to " + self.ipToConnect + ":" + str(self.portToConnect) + " -> :q")
                 self.responseReceived = None
                 self.tcpClientSocket.close()
-                
+        elif (self.responseReceived[0] == "RING-MESSAGE"):
+            self.handle_ring_message(self.responseReceived[len("RING-MESSAGE"):])
 
 # main process of the peer
 class peerMain:
@@ -310,17 +351,12 @@ class peerMain:
         # as long as the user is not logged out, asks to select an option in the menu
         while choice != "3":
             # menu selection prompt
-            choice = input("Choose: \nCreate account: 1\nLogin: 2\nLogout: 3\nSearch: 4\nStart a chat: 5\n")
+            choice = input("Choose: \nCreate account: 1\nLogin: 2\nLogout: 3\nSearch: 4\nStart a chat: 5\nShow Online Users: 6\n")
             # if choice is 1, creates an account with the username
             # and password entered by the user
             if choice is "1":
                 username = input("username: ")
                 password = input("password: ")
-                while len(password)<7:
-                    print("Password must be greater than or equal to SEVEN characters.")
-                    password = input("password: ")
-                
-                
                 self.createAccount(username, password)
             # if choice is 2 and user is not logged in, asks for the username
             # and the password to login
@@ -352,6 +388,7 @@ class peerMain:
                 if self.peerClient is not None:
                     self.peerClient.tcpClientSocket.close()
                 print("Logged out successfully")
+                print("Reference code: 212")
             # is peer is not logged in and exits the program
             elif choice is "3":
                 self.logout(2)
@@ -376,6 +413,30 @@ class peerMain:
                     self.peerClient = PeerClient(searchStatus[0], int(searchStatus[1]) , self.loginCredentials[0], self.peerServer, None)
                     self.peerClient.start()
                     self.peerClient.join()
+
+            #if choice is 6 then user wants to see currently online users
+            elif choice == "6":
+                viewOnlineUsers(self)
+
+            elif choice == "7":
+                group_peers = []
+                num_peers_in_group = 3  # Set the desired number of peers in the group
+
+                for i in range(num_peers_in_group):
+                    peer = PeerServer(self.loginCredentials[0], self.peerServerPort)
+                    peer.start()
+                    group_peers.append(peer)
+
+                # Start group chat
+                self.start_group_chat(group_peers)
+
+                # Start the ring thread for each peer
+                for peer in group_peers:
+                    threading.Thread(target=peer.ring_thread).start()
+
+                self.start_group_chat(group_peers)
+
+
             # if this is the receiver side then it will get the prompt to accept an incoming request during the main loop
             # that's why response is evaluated in main process not the server thread even though the prompt is printed by server
             # if the response is ok then a client is created for this peer with the OK message and that's why it will directly
@@ -402,41 +463,51 @@ class peerMain:
         if choice != "CANCEL":
             self.tcpClientSocket.close()
 
+    def start_group_chat(self, group_peers):
+        for i in range(len(group_peers)):
+            group_peers[i].add_to_ring(group_peers[(i + 1) % len(group_peers)])
+
     # account creation function
     def createAccount(self, username, password):
         # join message to create an account is composed and sent to registry
         # if response is success then informs the user for account creation
         # if response is exist then informs the user for account existence
-        message = "JOIN " + username + " " + password
+        message = "REGISTER-USER " + username + " " + password
         logging.info("Send to " + self.registryName + ":" + str(self.registryPort) + " -> " + message)
         self.tcpClientSocket.send(message.encode())
         response = self.tcpClientSocket.recv(1024).decode()
         logging.info("Received from " + self.registryName + " -> " + response)
-        if response == "join-success":
+        if response == "REGISTER-USER-SUCCESS":
             print("Account created...")
-        elif response == "join-exist":
+            print("Reference code: 210")
+        elif response == "REGISTER-USER-ALREADY-EXISTS":
             print("choose another username or login...")
+            print("Reference code: 310")
 
     # login function
     def login(self, username, password, peerServerPort):
         # a login message is composed and sent to registry
         # an integer is returned according to each response
-        message = "LOGIN " + username + " " + bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()) + " " + str(peerServerPort)
+        message = "LOGIN " + username + " " + password + " " + str(peerServerPort)
         logging.info("Send to " + self.registryName + ":" + str(self.registryPort) + " -> " + message)
         self.tcpClientSocket.send(message.encode())
         response = self.tcpClientSocket.recv(1024).decode()
         logging.info("Received from " + self.registryName + " -> " + response)
-        if response == "login-success":
+        if response == "LOGIN-SUCCESS":
             print("Logged in successfully...")
+            print("Reference code: 211")
             return 1
-        elif response == "login-account-not-exist":
+        elif response == "LOGIN-NOT-FOUND":
             print("Account does not exist...")
+            print("Reference code: 312")
             return 0
-        elif response == "login-online":
+        elif response == "LOGIN-LIVE":
             print("Account is already online...")
+            print("Reference code: 311")
             return 2
-        elif response == "login-wrong-password":
+        elif response == "LOGIN-WRONG-PASSWORD":
             print("Wrong password...")
+            print("Reference code: 313")
             return 3
     
     # logout function
@@ -450,7 +521,23 @@ class peerMain:
             message = "LOGOUT"
         logging.info("Send to " + self.registryName + ":" + str(self.registryPort) + " -> " + message)
         self.tcpClientSocket.send(message.encode())
+        response = self.tcpClientSocket.recv(1024).decode().split()
+        if response[0] == "LOGOUT-SUCCESS":
+            print("logged out successfully....")
+            print("Reference code: 212")
+
+    #View Online Users function
+    def viewOnlineUsers(self):
+        message = "VIEW-ONLINE-USERS"
+        self.tcpClientSocket.send(message.encode())
+        response = self.tcpClientSocket.recv(1024).decode().split()
+        if response[0] == "CURRENTLY-ONLINE-USERS":
+            print("Online users: ")
+            for i in response:
+                if(i!="CURRENTLY-ONLINE-USERS"):
+                    print(i)
         
+            print("Reference code: 213")
 
     # function for searching an online user
     def searchUser(self, username):
@@ -462,14 +549,13 @@ class peerMain:
         self.tcpClientSocket.send(message.encode())
         response = self.tcpClientSocket.recv(1024).decode().split()
         logging.info("Received from " + self.registryName + " -> " + " ".join(response))
-        if response[0] == "search-success":
+        if response[0] == "SEARCH-SUCCESS":
             print(username + " is found successfully...")
+            print("Reference code: 219")
             return response[1]
-        elif response[0] == "search-user-not-online":
-            print(username + " is not online...")
-            return 0
-        elif response[0] == "search-user-not-found":
+        elif response[0] == "SEARCH-NOT-FOUND":
             print(username + " is not found")
+            print("Reference code: 319")
             return None
     
     # function for sending hello message

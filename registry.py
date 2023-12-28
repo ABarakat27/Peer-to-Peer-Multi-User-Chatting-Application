@@ -1,7 +1,6 @@
-
 '''
     ##  Implementation of registry
-    ##  150114822 - Eren Ulaş
+    ##  150114822 - Eren Ulaş
 '''
 
 from socket import *
@@ -150,7 +149,7 @@ class ClientThread(threading.Thread):
                 logging.error("OSError: {0}".format(oErr)) 
 
 
-    # function for resettin the timeout for the udp timer thread
+    # function for resetting the timeout for the udp timer thread
     def resetTimeout(self):
         self.udpServer.resetTimer()
 
@@ -187,7 +186,7 @@ class UDPServer(threading.Thread):
 
 
 # tcp and udp server port initializations
-print("Registy started...")
+print("Registry started...")
 port = 15600
 portUDP = 15500
 
@@ -259,4 +258,3 @@ while inputs:
                     
 # registry tcp socket is closed
 tcpSocket.close()
-

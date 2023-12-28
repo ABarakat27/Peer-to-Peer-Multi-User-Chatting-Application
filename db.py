@@ -1,20 +1,16 @@
 from pymongo import MongoClient
-import bcrypt
 
 # Includes database operations
 class DB:
-
 
     # db initializations
     def __init__(self):
         self.client = MongoClient('mongodb://localhost:27017/')
         self.db = self.client['p2p-chat']
 
-
     # checks if an account with the username exists
     def is_account_exist(self, username):
-        count = self.db.accounts.count_documents({'username': username})
-        return count > 0
+        return self.db.accounts.count_documents({'username': username}) > 0
 
     # registers a user
     def register(self, username, password):
@@ -22,22 +18,16 @@ class DB:
             "username": username,
             "password": password
         }
-        self.db.accounts.insert(account)
-
+        self.db.accounts.insert_one(account)
 
     # retrieves the password for a given username
     def get_password(self, username):
         return self.db.accounts.find_one({"username": username})["password"]
 
-
-    # checks if an account with the username online
+    # checks if an account with the username is online
     def is_account_online(self, username):
-        if self.db.online_peers.find({"username": username}).count() > 0:
-            return True
-        else:
-            return False
+        return self.db.online_peers.count_documents({"username": username}) > 0
 
-    
     # logs in the user
     def user_login(self, username, ip, port):
         online_peer = {
@@ -45,13 +35,11 @@ class DB:
             "ip": ip,
             "port": port
         }
-        self.db.online_peers.insert(online_peer)
-    
+        self.db.online_peers.insert_one(online_peer)
 
-    # logs out the user 
+    # logs out the user
     def user_logout(self, username):
-        self.db.online_peers.remove({"username": username})
-    
+        self.db.online_peers.delete_one({"username": username})
 
     # retrieves the ip address and the port number of the username
     def get_peer_ip_port(self, username):
